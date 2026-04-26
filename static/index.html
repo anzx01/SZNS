@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>实验室自适应优化验证平台</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="side-rail">
+      <div class="brand-block">
+        <span class="brand-mark">SZ</span>
+        <div>
+          <strong>实验闭环</strong>
+          <small>MVP 0.1</small>
+        </div>
+      </div>
+      <button id="loadDemo" class="rail-action">载入演示</button>
+      <div class="project-list" id="projectList"></div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">SiC/GaN switching lab</p>
+          <h1 id="projectTitle">实验项目</h1>
+        </div>
+        <div class="topbar-actions">
+          <button id="recommendBtn" class="primary-action">生成推荐</button>
+          <button id="reportBtn" class="secondary-action">生成报告</button>
+        </div>
+      </header>
+
+      <section class="status-strip" id="metricStrip"></section>
+
+      <section class="work-grid">
+        <div class="waveform-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="panel-kicker">Waveform</span>
+              <h2>最新 run 波形</h2>
+            </div>
+            <select id="runPicker" aria-label="选择 run"></select>
+          </div>
+          <canvas id="waveCanvas" width="920" height="360"></canvas>
+        </div>
+
+        <div class="control-panel">
+          <div class="panel-heading compact">
+            <div>
+              <span class="panel-kicker">Import</span>
+              <h2>导入 run</h2>
+            </div>
+          </div>
+          <label class="field">
+            <span>数据文件</span>
+            <input id="dataFile" type="file" accept=".csv,.json">
+          </label>
+          <label class="field">
+            <span>Run 名称</span>
+            <input id="runLabel" type="text" value="manual-run">
+          </label>
+          <div class="param-grid">
+            <label class="field">
+              <span>死区 ns</span>
+              <input id="deadTime" type="number" value="140">
+            </label>
+            <label class="field">
+              <span>栅极电阻</span>
+              <input id="gateResistance" type="number" value="5">
+            </label>
+            <label class="field">
+              <span>驱动电压</span>
+              <input id="driveVoltage" type="number" value="15">
+            </label>
+            <label class="field">
+              <span>阻尼电阻</span>
+              <input id="dampingResistance" type="number" value="2">
+            </label>
+          </div>
+          <button id="importRunBtn" class="primary-action full">导入并计算</button>
+          <p id="message" class="message"></p>
+        </div>
+      </section>
+
+      <section class="lower-grid">
+        <div class="runs-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="panel-kicker">Runs</span>
+              <h2>实验记录</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Vds Max</th>
+                  <th>Ids Max</th>
+                  <th>过冲</th>
+                  <th>频率</th>
+                  <th>衰减</th>
+                  <th>风险</th>
+                </tr>
+              </thead>
+              <tbody id="runRows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="recommend-panel">
+          <div class="panel-heading compact">
+            <div>
+              <span class="panel-kicker">Next</span>
+              <h2>参数推荐</h2>
+            </div>
+          </div>
+          <div id="recommendationBox" class="recommendation-box"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
