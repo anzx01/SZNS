@@ -14,6 +14,7 @@ EMPTY_DB = {
     "runs": [],
     "recommendations": [],
     "reports": [],
+    "events": [],
 }
 
 
@@ -60,6 +61,9 @@ class JsonStore:
         configs = [item for item in self._read()["configs"] if item["project_id"] == project_id]
         return configs[-1] if configs else None
 
+    def get_project(self, project_id: str) -> dict | None:
+        return self._find("projects", project_id)
+
     def save_dataset(self, dataset: dict) -> dict:
         db = self._read()
         db["datasets"].append(dataset)
@@ -79,6 +83,14 @@ class JsonStore:
     def runs_for_project(self, project_id: str) -> list[dict]:
         return [item for item in self._read()["runs"] if item["project_id"] == project_id]
 
+    def get_recommendation(self, recommendation_id: str | None) -> dict | None:
+        if not recommendation_id:
+            return None
+        return self._find("recommendations", recommendation_id)
+
+    def recommendations_for_project(self, project_id: str) -> list[dict]:
+        return [item for item in self._read()["recommendations"] if item["project_id"] == project_id]
+
     def save_recommendation(self, recommendation: dict) -> dict:
         db = self._read()
         db["recommendations"].append(recommendation)
@@ -90,6 +102,12 @@ class JsonStore:
         db["reports"].append(report)
         self._write(db)
         return report
+
+    def save_event(self, event: dict) -> dict:
+        db = self._read()
+        db["events"].append(event)
+        self._write(db)
+        return event
 
     def project_bundle(self, project_id: str) -> dict:
         db = self._read()
@@ -103,6 +121,7 @@ class JsonStore:
                 item for item in db["recommendations"] if item["project_id"] == project_id
             ],
             "reports": [item for item in db["reports"] if item["project_id"] == project_id],
+            "events": [item for item in db["events"] if item["project_id"] == project_id],
         }
 
     def _find(self, collection: str, item_id: str) -> dict | None:
@@ -120,4 +139,3 @@ class JsonStore:
         with tmp.open("w", encoding="utf-8") as handle:
             json.dump(data, handle, ensure_ascii=False, indent=2)
         tmp.replace(self.db_path)
-

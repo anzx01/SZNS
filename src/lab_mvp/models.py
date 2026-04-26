@@ -33,7 +33,40 @@ def default_sic_gan_config(project_id: str) -> dict:
             "settling_time_us": 0.3,
             "switching_loss_estimate": 0.3,
         },
+        "model_calibration": {},
         "created_at": utcnow(),
         "updated_at": utcnow(),
     }
 
+
+def default_track_insulation_config(project_id: str) -> dict:
+    return {
+        "id": new_id("config"),
+        "project_id": project_id,
+        "name": "Track insulation default safety envelope",
+        "parameter_space": {
+            "test_voltage": {"min": 250, "max": 1000, "unit": "V"},
+            "detection_period": {"min": 1, "max": 24, "unit": "h"},
+            "alarm_threshold": {"min": 0.5, "max": 10, "unit": "MOhm"},
+        },
+        "safety_limits": {
+            "max_test_voltage": 1000,
+            "min_insulation_mohm": 1.0,
+            "max_leakage_ma": 2.0,
+            "max_humidity": 95,
+        },
+        "objective_weights": {
+            "degradation_index": 0.45,
+            "max_leakage_ma": 0.35,
+            "environment_stress": 0.2,
+        },
+        "model_calibration": {},
+        "created_at": utcnow(),
+        "updated_at": utcnow(),
+    }
+
+
+def default_config_for(experiment_type: str, project_id: str) -> dict:
+    if experiment_type == "track_insulation":
+        return default_track_insulation_config(project_id)
+    return default_sic_gan_config(project_id)

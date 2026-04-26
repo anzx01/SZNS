@@ -17,6 +17,14 @@
         </div>
       </div>
       <button id="loadDemo" class="rail-action">载入演示</button>
+      <button id="loadTrackDemo" class="rail-action">载入轨道样例</button>
+      <div class="create-project">
+        <span class="side-kicker">New project</span>
+        <select id="newProjectType" class="side-input" aria-label="选择实验类型"></select>
+        <input id="newProjectName" class="side-input" type="text" placeholder="项目名称">
+        <button id="createProjectBtn" class="rail-action compact">新建空白项目</button>
+        <button id="downloadTemplateBtn" class="rail-action ghost compact">下载 CSV 模板</button>
+      </div>
       <div class="project-list" id="projectList"></div>
     </aside>
 
@@ -27,7 +35,16 @@
           <h1 id="projectTitle">实验项目</h1>
         </div>
         <div class="topbar-actions">
+          <select id="optimizerSelect" class="toolbar-select" aria-label="选择推荐算法">
+            <option value="bayesian">贝叶斯式探索</option>
+            <option value="heuristic">启发式规则</option>
+          </select>
+          <select id="modelModeSelect" class="toolbar-select" aria-label="选择模型模式">
+            <option value="fast">快速模型</option>
+            <option value="high_fidelity">高保真模型</option>
+          </select>
           <button id="recommendBtn" class="primary-action">生成推荐</button>
+          <button id="calibrateModelBtn" class="secondary-action">校准模型</button>
           <button id="reportBtn" class="secondary-action">生成报告</button>
         </div>
       </header>
@@ -57,29 +74,15 @@
             <span>数据文件</span>
             <input id="dataFile" type="file" accept=".csv,.json">
           </label>
+          <button id="previewDataBtn" class="secondary-action full">预览校验</button>
+          <div id="importPreview" class="import-preview"></div>
           <label class="field">
             <span>Run 名称</span>
             <input id="runLabel" type="text" value="manual-run">
           </label>
-          <div class="param-grid">
-            <label class="field">
-              <span>死区 ns</span>
-              <input id="deadTime" type="number" value="140">
-            </label>
-            <label class="field">
-              <span>栅极电阻</span>
-              <input id="gateResistance" type="number" value="5">
-            </label>
-            <label class="field">
-              <span>驱动电压</span>
-              <input id="driveVoltage" type="number" value="15">
-            </label>
-            <label class="field">
-              <span>阻尼电阻</span>
-              <input id="dampingResistance" type="number" value="2">
-            </label>
-          </div>
+          <div class="param-grid" id="runParamInputs"></div>
           <button id="importRunBtn" class="primary-action full">导入并计算</button>
+          <button id="simulateRunBtn" class="secondary-action full">仿真 run</button>
           <p id="message" class="message"></p>
         </div>
       </section>
@@ -120,10 +123,64 @@
           <div id="recommendationBox" class="recommendation-box"></div>
         </div>
       </section>
+
+      <section class="config-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">Config</span>
+            <h2>参数空间与安全阈值</h2>
+          </div>
+          <button id="saveConfigBtn" class="secondary-action">保存配置版本</button>
+        </div>
+        <div class="config-grid">
+          <div>
+            <h3>参数范围</h3>
+            <div id="parameterConfig" class="config-fields"></div>
+          </div>
+          <div>
+            <h3>安全阈值</h3>
+            <div id="safetyConfig" class="config-fields"></div>
+          </div>
+          <div>
+            <h3>目标权重</h3>
+            <div id="weightConfig" class="config-fields"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="manifest-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">Manifest</span>
+            <h2>实验插件契约</h2>
+          </div>
+          <span id="manifestType" class="manifest-type">plugin</span>
+        </div>
+        <div id="manifestGrid" class="manifest-grid"></div>
+      </section>
+
+      <section class="event-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">Log</span>
+            <h2>实验日志</h2>
+          </div>
+        </div>
+        <div id="eventLog" class="event-log"></div>
+      </section>
+
+      <section class="plugin-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="panel-kicker">Plugins</span>
+            <h2>插件目录</h2>
+          </div>
+        </div>
+        <div id="pluginCatalog" class="plugin-catalog"></div>
+      </section>
     </main>
   </div>
 
   <script src="/static/app.js"></script>
 </body>
 </html>
-

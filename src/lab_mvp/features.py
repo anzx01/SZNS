@@ -101,3 +101,76 @@ class SiCGaNFeaturePlugin:
             return "medium", flags
         return "low", []
 
+
+class TrackInsulationFeaturePlugin:
+    name = "TrackInsulationFeaturePlugin"
+
+    def extract(self, rows: list[dict[str, float]], config: dict) -> dict:
+        resistances = [self._resistance_mohm(row["voltage"], row["current"]) for row in rows]
+        leakages = [abs(row["current"]) for row in rows]
+        humidity_values = [row.get("humidity") for row in rows if row.get("humidity") is not None]
+        temperature_values = [row.get("temperature") for row in rows if row.get("temperature") is not None]
+
+        min_resistance = min(resistances)
+        avg_resistance = sum(resistances) / len(resistances)
+        max_leakage = max(leakages)
+        max_humidity = max(humidity_values) if humidity_values else None
+        max_temperature = max(temperature_values) if temperature_values else None
+        alarm_threshold = config.get("safety_limits", {}).get("min_insulation_mohm", 1.0)
+        degradation_index = max(0.0, (alarm_threshold - min_resistance) / max(alarm_threshold, 1e-9))
+        environment_stress = self._environment_stress(max_humidity, max_temperature)
+        risk_level, risk_flags = self._risk(
+            min_resistance,
+            max_leakage,
+            max_humidity,
+            config,
+        )
+
+        return {
+            "min_insulation_mohm": round(min_resistance, 4),
+            "avg_insulation_mohm": round(avg_resistance, 4),
+            "max_leakage_ma": round(max_leakage, 5),
+            "max_humidity": round(max_humidity, 3) if max_humidity is not None else None,
+            "max_temperature": round(max_temperature, 3) if max_temperature is not None else None,
+            "degradation_index": round(degradation_index, 5),
+            "environment_stress": round(environment_stress, 5),
+            "risk_level": risk_level,
+            "risk_flags": risk_flags,
+        }
+
+    def _resistance_mohm(self, voltage: float, current_ma: float) -> float:
+        current_amp = max(abs(current_ma) / 1000, 1e-9)
+        return abs(voltage) / current_amp / 1_000_000
+
+    def _environment_stress(self, humidity: float | None, temperature: float | None) -> float:
+        humidity_score = 0.0 if humidity is None else max(0.0, (humidity - 70) / 30)
+        temperature_score = 0.0 if temperature is None else max(0.0, (temperature - 35) / 35)
+        return min(1.0, humidity_score * 0.7 + temperature_score * 0.3)
+
+    def _risk(
+        self,
+        min_resistance: float,
+        max_leakage: float,
+        max_humidity: float | None,
+        config: dict,
+    ) -> tuple[str, list[str]]:
+        limits = config.get("safety_limits", {})
+        flags: list[str] = []
+        if min_resistance < limits.get("min_insulation_mohm", 1.0):
+            flags.append("绝缘电阻低于安全阈值")
+        elif min_resistance < limits.get("min_insulation_mohm", 1.0) * 1.25:
+            flags.append("绝缘电阻接近安全阈值")
+
+        if max_leakage > limits.get("max_leakage_ma", float("inf")):
+            flags.append("泄漏电流超出安全上限")
+        elif max_leakage > limits.get("max_leakage_ma", float("inf")) * 0.85:
+            flags.append("泄漏电流接近安全上限")
+
+        if max_humidity is not None and max_humidity > limits.get("max_humidity", 100):
+            flags.append("湿度超出环境上限")
+
+        if any("低于" in item or "超出" in item for item in flags):
+            return "high", flags
+        if flags:
+            return "medium", flags
+        return "low", []

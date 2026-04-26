@@ -29,6 +29,15 @@ class MVPHandler(BaseHTTPRequestHandler):
             if path == "/api/state":
                 self._json(orchestrator.state())
                 return
+            if path == "/api/experiments":
+                self._json(orchestrator.state()["experiments"])
+                return
+            if path == "/api/plugins":
+                self._json(orchestrator.plugin_catalog())
+                return
+            if path.startswith("/api/templates/"):
+                self._serve_template(path)
+                return
             if path.startswith("/reports/"):
                 self._serve_report(path)
                 return
@@ -47,10 +56,30 @@ class MVPHandler(BaseHTTPRequestHandler):
         try:
             payload = self._payload()
             if path == "/api/projects":
-                self._json(orchestrator.create_project(payload.get("name", "Untitled"), payload.get("description", "")))
+                self._json(orchestrator.create_project(
+                    payload.get("name", "Untitled"),
+                    payload.get("description", ""),
+                    payload.get("experiment_type", "sic_gan_switching"),
+                ))
                 return
             if path == "/api/datasets/import":
-                self._json(orchestrator.import_dataset(payload["project_id"], payload["filename"], payload["content"]))
+                self._json(orchestrator.import_dataset(
+                    payload["project_id"],
+                    payload["filename"],
+                    payload["content"],
+                    payload.get("field_mapping"),
+                ))
+                return
+            if path == "/api/datasets/preview":
+                self._json(orchestrator.preview_dataset(
+                    payload["project_id"],
+                    payload["filename"],
+                    payload["content"],
+                    payload.get("field_mapping"),
+                ))
+                return
+            if path == "/api/configs/update":
+                self._json(orchestrator.update_config(payload["project_id"], payload["config"]))
                 return
             if path == "/api/runs":
                 self._json(orchestrator.create_run(
@@ -60,14 +89,35 @@ class MVPHandler(BaseHTTPRequestHandler):
                     payload.get("label", ""),
                 ))
                 return
+            if path == "/api/runs/simulate":
+                self._json(orchestrator.simulate_run(
+                    payload["project_id"],
+                    payload.get("parameters", {}),
+                    payload.get("label", ""),
+                    payload.get("mode", "fast"),
+                ))
+                return
+            if path == "/api/recommendations/simulate":
+                self._json(orchestrator.simulate_recommendation(
+                    payload["project_id"],
+                    payload.get("recommendation_id"),
+                    payload.get("mode", "fast"),
+                ))
+                return
             if path == "/api/recommendations":
-                self._json(orchestrator.recommend(payload["project_id"]))
+                self._json(orchestrator.recommend(payload["project_id"], payload.get("optimizer", "bayesian")))
+                return
+            if path == "/api/models/calibrate":
+                self._json(orchestrator.calibrate_model(payload["project_id"]))
                 return
             if path == "/api/reports":
                 self._json(orchestrator.generate_report(payload["project_id"]))
                 return
             if path == "/api/demo/load":
                 self._json(orchestrator.load_demo())
+                return
+            if path == "/api/demo/track":
+                self._json(orchestrator.load_track_demo())
                 return
             self._not_found()
         except Exception as exc:
@@ -91,6 +141,21 @@ class MVPHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _text(
+        self,
+        body: str,
+        content_type: str = "text/plain; charset=utf-8",
+        filename: str | None = None,
+    ) -> None:
+        raw = body.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(raw)))
+        if filename:
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(raw)
+
     def _serve_file(self, path: Path) -> None:
         resolved = path.resolve()
         if ROOT not in resolved.parents and resolved != ROOT:
@@ -113,6 +178,12 @@ class MVPHandler(BaseHTTPRequestHandler):
         report_name = Path(unquote(path)).name
         self._serve_file(store.report_dir / report_name)
 
+    def _serve_template(self, path: str) -> None:
+        filename = Path(unquote(path)).name
+        experiment_type = filename.removesuffix(".csv")
+        content = orchestrator.csv_template(experiment_type)
+        self._text(content, "text/csv; charset=utf-8", f"{experiment_type}_template.csv")
+
     def _not_found(self) -> None:
         self._json({"error": "Not found"}, 404)
 
@@ -129,4 +200,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

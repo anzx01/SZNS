@@ -86,7 +86,8 @@ button {
 .rail-action,
 .project-item,
 .primary-action,
-.secondary-action {
+.secondary-action,
+.toolbar-select {
   border: 1px solid var(--moss);
   min-height: 42px;
   padding: 0 14px;
@@ -104,6 +105,43 @@ button {
 .rail-action {
   margin-bottom: 18px;
   background: #eef1e8;
+}
+
+.rail-action.compact {
+  margin-bottom: 8px;
+  min-height: 38px;
+}
+
+.rail-action.ghost {
+  background: transparent;
+  border-color: var(--line);
+}
+
+.create-project {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0 10px;
+  margin: 4px 0 18px;
+}
+
+.side-kicker {
+  display: block;
+  color: var(--copper);
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.side-input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcf7;
+  color: var(--ink);
+  padding: 0 10px;
+  margin-bottom: 8px;
 }
 
 .project-list {
@@ -181,6 +219,11 @@ h2 {
   background: transparent;
 }
 
+.toolbar-select {
+  background: #fbfcf7;
+  min-width: 170px;
+}
+
 .full {
   width: 100%;
   margin-top: 14px;
@@ -230,7 +273,11 @@ h2 {
 .waveform-panel,
 .control-panel,
 .runs-panel,
-.recommend-panel {
+.recommend-panel,
+.config-panel,
+.manifest-panel,
+.event-panel,
+.plugin-panel {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
@@ -274,6 +321,174 @@ h2 {
   padding: 0 18px 18px;
 }
 
+.config-panel,
+.manifest-panel,
+.event-panel,
+.plugin-panel {
+  margin-top: 14px;
+  padding-bottom: 18px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 18px;
+  padding: 16px 18px 0;
+}
+
+.config-grid h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.config-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.config-row {
+  display: grid;
+  grid-template-columns: minmax(112px, 1fr) minmax(74px, 0.7fr) minmax(74px, 0.7fr);
+  gap: 8px;
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.config-row.single {
+  grid-template-columns: minmax(120px, 1fr) minmax(90px, 0.8fr);
+}
+
+.config-label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.config-input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcf7;
+  padding: 0 9px;
+  color: var(--ink);
+}
+
+.manifest-type {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: var(--muted);
+  background: #f8faf4;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.manifest-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 14px;
+  padding: 16px 18px 0;
+}
+
+.manifest-card {
+  border: 1px solid var(--line);
+  background: #fbfcf7;
+  padding: 14px;
+  min-height: 128px;
+}
+
+.manifest-card.wide {
+  grid-column: span 2;
+}
+
+.manifest-card h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.manifest-card p {
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.token-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.token {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #eef1e8;
+  color: var(--moss);
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.event-log {
+  padding: 16px 18px 0;
+  display: grid;
+  gap: 10px;
+}
+
+.event-item {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 14px;
+  border-left: 3px solid var(--copper);
+  background: #fbfcf7;
+  border-top: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 12px;
+}
+
+.event-time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.event-main strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.event-main small {
+  color: var(--muted);
+}
+
+.plugin-catalog {
+  padding: 16px 18px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.plugin-card {
+  border: 1px solid var(--line);
+  background: #fbfcf7;
+  padding: 12px;
+}
+
+.plugin-card strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.plugin-card small {
+  color: var(--muted);
+}
+
 .field {
   display: grid;
   gap: 7px;
@@ -303,6 +518,108 @@ h2 {
   min-height: 22px;
   margin: 12px 0 0;
   font-size: 13px;
+}
+
+.import-preview {
+  margin-top: 12px;
+}
+
+.preview-box {
+  border: 1px solid var(--line);
+  background: #fbfcf7;
+  padding: 12px;
+}
+
+.preview-box.valid {
+  border-left: 4px solid var(--ok);
+}
+
+.preview-box.invalid {
+  border-left: 4px solid var(--danger);
+}
+
+.preview-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.preview-head strong {
+  font-size: 13px;
+}
+
+.preview-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.preview-groups {
+  display: grid;
+  gap: 8px;
+}
+
+.preview-group small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.preview-errors {
+  color: var(--danger);
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.preview-table {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+}
+
+.preview-table table {
+  min-width: 420px;
+}
+
+.preview-table th,
+.preview-table td {
+  font-size: 11px;
+  padding: 8px;
+}
+
+.mapping-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mapping-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 0.8fr) minmax(120px, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.mapping-row span {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mapping-row select {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 8px;
+  min-width: 0;
 }
 
 .table-wrap {
@@ -411,7 +728,17 @@ th {
 
   .work-grid,
   .lower-grid,
-  .status-strip {
+  .status-strip,
+  .config-grid,
+  .manifest-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manifest-card.wide {
+    grid-column: span 1;
+  }
+
+  .event-item {
     grid-template-columns: 1fr;
   }
 
@@ -424,4 +751,3 @@ th {
     justify-content: flex-start;
   }
 }
-
