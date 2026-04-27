@@ -1,0 +1,11 @@
+{
+  "id": "optimizer:ConservativeOptimizerPlugin",
+  "name": "ConservativeOptimizerPlugin",
+  "type": "optimizer",
+  "key": "conservative_external",
+  "version": "0.1.0",
+  "entrypoint": "plugin:ConservativeOptimizerPlugin",
+  "default_loaded": true,
+  "description": "A local external optimizer package that prefers conservative midpoint-safe parameters.",
+  "notes": "Loaded from plugins/conservative_optimizer/plugin.py"
+}

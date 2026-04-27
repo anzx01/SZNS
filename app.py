@@ -35,6 +35,9 @@ class MVPHandler(BaseHTTPRequestHandler):
             if path == "/api/plugins":
                 self._json(orchestrator.plugin_catalog())
                 return
+            if path.startswith("/api/projects/"):
+                if self._serve_project_export(path):
+                    return
             if path.startswith("/api/templates/"):
                 self._serve_template(path)
                 return
@@ -106,6 +109,26 @@ class MVPHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/recommendations":
                 self._json(orchestrator.recommend(payload["project_id"], payload.get("optimizer", "bayesian")))
+                return
+            if path == "/api/recommendations/decision":
+                self._json(orchestrator.decide_recommendation(
+                    payload["project_id"],
+                    payload["recommendation_id"],
+                    payload["decision"],
+                    payload.get("note", ""),
+                ))
+                return
+            if path == "/api/plugins/load":
+                self._json(orchestrator.load_plugin(
+                    payload["plugin_id"],
+                    payload.get("project_id"),
+                ))
+                return
+            if path == "/api/plugins/unload":
+                self._json(orchestrator.unload_plugin(
+                    payload["plugin_id"],
+                    payload.get("project_id"),
+                ))
                 return
             if path == "/api/models/calibrate":
                 self._json(orchestrator.calibrate_model(payload["project_id"]))
@@ -183,6 +206,21 @@ class MVPHandler(BaseHTTPRequestHandler):
         experiment_type = filename.removesuffix(".csv")
         content = orchestrator.csv_template(experiment_type)
         self._text(content, "text/csv; charset=utf-8", f"{experiment_type}_template.csv")
+
+    def _serve_project_export(self, path: str) -> bool:
+        parts = [unquote(part) for part in path.strip("/").split("/")]
+        if len(parts) != 4 or parts[:2] != ["api", "projects"]:
+            return False
+        project_id = parts[2]
+        if parts[3] == "export.json":
+            content = orchestrator.export_project_json(project_id)
+            self._text(content, "application/json; charset=utf-8", f"{project_id}_export.json")
+            return True
+        if parts[3] == "events.csv":
+            content = orchestrator.export_events_csv(project_id)
+            self._text(content, "text/csv; charset=utf-8", f"{project_id}_events.csv")
+            return True
+        return False
 
     def _not_found(self) -> None:
         self._json({"error": "Not found"}, 404)

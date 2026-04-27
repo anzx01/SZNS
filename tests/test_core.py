@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -11,7 +12,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from lab_mvp.constraints import SiCGaNConstraintPlugin, TrackInsulationConstraintPlugin
-from lab_mvp.data_plugins import CSVDataSourcePlugin
+from lab_mvp.data_plugins import CSVDataSourcePlugin, HDF5DataSourcePlugin
 from lab_mvp.experiments import csv_template
 from lab_mvp.features import SiCGaNFeaturePlugin, TrackInsulationFeaturePlugin
 from lab_mvp.models import default_sic_gan_config, default_track_insulation_config
@@ -281,6 +282,147 @@ class CoreFlowTest(unittest.TestCase):
 
             self.assertIn("DataPreprocessorPlugin", names)
             self.assertIn("SiCGaNDigitalTwinPlugin", names)
+            self.assertIn("HDF5DataSourcePlugin", names)
+            self.assertIn("ConservativeOptimizerPlugin", names)
+
+    def test_recommendation_can_be_accepted_or_rejected_by_user(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = JsonStore(Path(temp_dir))
+            orchestrator = ExperimentOrchestrator(store, ROOT / "sample_data")
+            bundle = orchestrator.load_demo()
+            project_id = bundle["project"]["id"]
+            recommendation = bundle["recommendations"][-1]
+
+            accepted = orchestrator.decide_recommendation(project_id, recommendation["id"], "accept")
+            second = orchestrator.recommend(project_id, "heuristic")
+            rejected = orchestrator.decide_recommendation(project_id, second["id"], "reject")
+            event_types = {event["type"] for event in store.project_bundle(project_id)["events"]}
+
+            self.assertEqual(accepted["status"], "accepted_by_user")
+            self.assertEqual(rejected["status"], "rejected_by_user")
+            self.assertIn("recommendation.accepted", event_types)
+            self.assertIn("recommendation.rejected", event_types)
+
+    def test_project_and_event_exports_are_portable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = JsonStore(Path(temp_dir))
+            orchestrator = ExperimentOrchestrator(store, ROOT / "sample_data")
+            bundle = orchestrator.load_demo()
+            project_id = bundle["project"]["id"]
+
+            exported = json.loads(orchestrator.export_project_json(project_id))
+            events_csv = orchestrator.export_events_csv(project_id)
+
+            self.assertEqual(exported["schema_version"], "lab_mvp.project_export.v1")
+            self.assertEqual(exported["bundle"]["project"]["id"], project_id)
+            self.assertIn("time", exported["bundle"]["datasets"][0]["content"])
+            self.assertIn("created_at,type,message,details_json", events_csv)
+            self.assertIn("project.created", events_csv)
+
+    def test_hdf5_preview_reports_optional_adapter_status(self) -> None:
+        preview = HDF5DataSourcePlugin().preview_text("not-a-base64-hdf5-payload")
+
+        self.assertFalse(preview["valid"])
+        self.assertEqual(preview["source_type"], "hdf5")
+        self.assertTrue(any("h5py" in error or "base64" in error for error in preview["errors"]))
+
+    def test_runtime_plugin_load_unload_blocks_and_restores_optimizer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = JsonStore(Path(temp_dir))
+            orchestrator = ExperimentOrchestrator(store, ROOT / "sample_data")
+            bundle = orchestrator.load_demo()
+            project_id = bundle["project"]["id"]
+
+            unloaded = orchestrator.unload_plugin("optimizer:BayesianOptimizerPlugin", project_id)
+            with self.assertRaisesRegex(ValueError, "BayesianOptimizerPlugin"):
+                orchestrator.recommend(project_id, "bayesian")
+            reloaded = orchestrator.load_plugin("optimizer:BayesianOptimizerPlugin", project_id)
+            recommendation = orchestrator.recommend(project_id, "bayesian")
+            event_types = {event["type"] for event in store.project_bundle(project_id)["events"]}
+
+            self.assertEqual(unloaded["status"], "unloaded")
+            self.assertEqual(reloaded["status"], "active")
+            self.assertEqual(recommendation["optimizer"], BayesianOptimizerPlugin.name)
+            self.assertIn("plugin.unloaded", event_types)
+            self.assertIn("plugin.loaded", event_types)
+
+    def test_runtime_plugin_state_is_persisted_for_data_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = JsonStore(Path(temp_dir))
+            orchestrator = ExperimentOrchestrator(store, ROOT / "sample_data")
+            bundle = orchestrator.create_project("sic", experiment_type="sic_gan_switching")
+            project_id = bundle["project"]["id"]
+            content = csv_template("sic_gan_switching")
+
+            orchestrator.unload_plugin("data_source:CSVDataSourcePlugin")
+            resumed = ExperimentOrchestrator(store, ROOT / "sample_data")
+            with self.assertRaisesRegex(ValueError, "CSVDataSourcePlugin"):
+                resumed.preview_dataset(project_id, "wave.csv", content)
+
+            resumed.load_plugin("data_source:CSVDataSourcePlugin")
+            preview = resumed.preview_dataset(project_id, "wave.csv", content)
+
+            self.assertTrue(preview["valid"])
+
+    def test_unloading_model_plugin_blocks_simulation_until_reloaded(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = JsonStore(Path(temp_dir))
+            orchestrator = ExperimentOrchestrator(store, ROOT / "sample_data")
+            bundle = orchestrator.create_project("sic", experiment_type="sic_gan_switching")
+            project_id = bundle["project"]["id"]
+            params = {"dead_time": 140, "gate_resistance": 5, "drive_voltage": 15, "damping_resistance": 2}
+
+            orchestrator.unload_plugin("model:sic_gan_switching:SiCGaNDigitalTwinPlugin")
+            with self.assertRaisesRegex(ValueError, "SiCGaNDigitalTwinPlugin"):
+                orchestrator.simulate_run(project_id, params, "blocked")
+            orchestrator.load_plugin("model:sic_gan_switching:SiCGaNDigitalTwinPlugin")
+            run = orchestrator.simulate_run(project_id, params, "restored")
+
+            self.assertEqual(run["source_type"], "simulation")
+
+    def test_external_optimizer_package_can_be_generated_and_used(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plugin_root = Path(temp_dir) / "plugins"
+            package_dir = plugin_root / "temp_optimizer"
+            package_dir.mkdir(parents=True)
+            (package_dir / "plugin.json").write_text(
+                json.dumps({
+                    "id": "optimizer:TempExternalOptimizer",
+                    "name": "TempExternalOptimizer",
+                    "type": "optimizer",
+                    "key": "temp_external",
+                    "entrypoint": "plugin:TempExternalOptimizer",
+                    "default_loaded": True,
+                }),
+                encoding="utf-8",
+            )
+            (package_dir / "plugin.py").write_text(
+                "\n".join([
+                    "class TempExternalOptimizer:",
+                    "    name = 'TempExternalOptimizer'",
+                    "    def recommend(self, runs, config):",
+                    "        params = {}",
+                    "        for name, bounds in config.get('parameter_space', {}).items():",
+                    "            params[name] = round((float(bounds['min']) + float(bounds['max'])) / 2, 4)",
+                    "        return {",
+                    "            'recommended_parameters': params,",
+                    "            'expected_improvement': {'source': 'temp'},",
+                    "            'optimizer': self.name,",
+                    "            'reasons': ['generated by a temp external plugin package'],",
+                    "        }",
+                ]),
+                encoding="utf-8",
+            )
+
+            store = JsonStore(Path(temp_dir) / "store")
+            orchestrator = ExperimentOrchestrator(store, ROOT / "sample_data", plugin_root)
+            catalog = orchestrator.plugin_catalog()
+            bundle = orchestrator.create_project("sic", experiment_type="sic_gan_switching")
+            recommendation = orchestrator.recommend(bundle["project"]["id"], "temp_external")
+
+            self.assertIn("TempExternalOptimizer", {plugin["name"] for plugin in catalog})
+            self.assertEqual(recommendation["optimizer"], "TempExternalOptimizer")
+            self.assertIn("dead_time", recommendation["recommended_parameters"])
 
 
 if __name__ == "__main__":

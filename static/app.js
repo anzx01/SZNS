@@ -95,6 +95,7 @@ function render() {
   renderProjectCreator();
   renderProjects();
   renderHeader();
+  renderOptimizerOptions();
   renderMetrics();
   renderRunPicker();
   renderRunParamInputs();
@@ -106,6 +107,25 @@ function render() {
   renderPluginCatalog();
   renderImportPreview();
   drawChart(currentRun());
+}
+
+function renderOptimizerOptions() {
+  const select = el("optimizerSelect");
+  if (!select) return;
+  const previous = select.value;
+  const optimizers = state.pluginCatalog
+    .filter((plugin) => plugin.type === "optimizer" && plugin.loaded && plugin.key)
+    .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+  if (!optimizers.length) {
+    select.innerHTML = `<option value="">无可用优化器</option>`;
+    return;
+  }
+  select.innerHTML = optimizers
+    .map((plugin) => `<option value="${escapeHtml(plugin.key)}">${escapeHtml(plugin.name)}</option>`)
+    .join("");
+  if (previous && optimizers.some((plugin) => plugin.key === previous)) {
+    select.value = previous;
+  }
 }
 
 function renderProjectCreator() {
@@ -233,10 +253,20 @@ function renderRecommendation() {
   const reasons = rec.reasons || [];
   const warnings = safety.warnings || [];
   const rejects = safety.reasons || [];
+  const accepted = rec.status === "accepted_by_user";
+  const rejected = rec.status === "rejected_by_user" || rec.status === "rejected_by_safety";
   box.innerHTML = `
     <div class="param-list">${params}</div>
+    <div class="recommendation-status">
+      <span>状态</span>
+      <strong>${escapeHtml(statusLabel(rec.status))}</strong>
+    </div>
     <div class="${safetyClass}"><strong>${safetyTitle}</strong></div>
-    <button class="secondary-action full" data-verify-rec="${escapeHtml(rec.id)}">仿真验证推荐</button>
+    <div class="recommendation-actions">
+      <button class="secondary-action" data-verify-rec="${escapeHtml(rec.id)}">仿真验证</button>
+      <button class="primary-action" data-rec-decision="accept" data-rec-id="${escapeHtml(rec.id)}" ${!safety.passed || accepted ? "disabled" : ""}>接受</button>
+      <button class="secondary-action danger" data-rec-decision="reject" data-rec-id="${escapeHtml(rec.id)}" ${rejected ? "disabled" : ""}>拒绝</button>
+    </div>
     <ul class="reason-list">
       ${reasons.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
       ${warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
@@ -256,12 +286,24 @@ function renderPluginCatalog() {
     return;
   }
   container.innerHTML = plugins
-    .map((plugin) => `
-      <article class="plugin-card">
-        <strong>${escapeHtml(plugin.name)}</strong>
-        <small>${escapeHtml(plugin.type)} · ${escapeHtml(plugin.status || "active")}</small>
+    .map((plugin) => {
+      const loaded = Boolean(plugin.loaded);
+      const action = loaded ? "unload" : "load";
+      const disabled = loaded ? !plugin.can_unload : !plugin.loadable;
+      return `
+      <article class="plugin-card ${loaded ? "loaded" : "unloaded"}">
+        <div class="plugin-card-head">
+          <strong>${escapeHtml(plugin.name)}</strong>
+          <span class="plugin-status ${escapeHtml(plugin.status || "active")}">${escapeHtml(pluginStatusLabel(plugin.status))}</span>
+        </div>
+        <small>${escapeHtml(plugin.type)}${plugin.experiment_type ? ` · ${escapeHtml(plugin.experiment_type)}` : ""}</small>
+        ${plugin.notes ? `<p>${escapeHtml(plugin.notes)}</p>` : ""}
+        <button class="secondary-action plugin-toggle" data-plugin-action="${action}" data-plugin-id="${escapeHtml(plugin.id)}" ${disabled ? "disabled" : ""}>
+          ${loaded ? "卸载" : "加载"}
+        </button>
       </article>
-    `)
+    `;
+    })
     .join("");
 }
 
@@ -592,6 +634,20 @@ async function generateReport() {
   setMessage("报告已生成。");
 }
 
+function exportProject() {
+  const project = currentProject();
+  if (!project) return setMessage("请先载入或创建项目。");
+  window.location.href = `/api/projects/${encodeURIComponent(project.project.id)}/export.json`;
+  setMessage("项目 JSON 导出已开始。");
+}
+
+function exportEvents() {
+  const project = currentProject();
+  if (!project) return setMessage("请先载入或创建项目。");
+  window.location.href = `/api/projects/${encodeURIComponent(project.project.id)}/events.csv`;
+  setMessage("事件日志 CSV 导出已开始。");
+}
+
 async function importRun() {
   const project = currentProject();
   const file = el("dataFile").files[0];
@@ -603,7 +659,7 @@ async function importRun() {
     return setMessage("数据校验未通过，请先修正字段后再导入。");
   }
   setMessage("正在导入并计算指标...");
-  const content = await file.text();
+  const content = await readDataFileContent(file);
   const dataset = await api("/api/datasets/import", {
     method: "POST",
     body: JSON.stringify({
@@ -664,6 +720,37 @@ async function verifyRecommendation(recommendationId) {
   setMessage("推荐参数已完成仿真验证。");
 }
 
+async function decideRecommendation(recommendationId, decision) {
+  const project = currentProject();
+  if (!project) return setMessage("请先载入或创建项目。");
+  setMessage(decision === "accept" ? "正在确认推荐参数..." : "正在拒绝推荐参数...");
+  await api("/api/recommendations/decision", {
+    method: "POST",
+    body: JSON.stringify({
+      project_id: project.project.id,
+      recommendation_id: recommendationId,
+      decision,
+    }),
+  });
+  await refresh();
+  setMessage(decision === "accept" ? "推荐参数已确认，可进入下一轮实验。" : "推荐参数已拒绝。");
+}
+
+async function setPluginLoaded(pluginId, action) {
+  const project = currentProject();
+  const endpoint = action === "load" ? "/api/plugins/load" : "/api/plugins/unload";
+  setMessage(action === "load" ? "正在加载插件..." : "正在卸载插件...");
+  await api(endpoint, {
+    method: "POST",
+    body: JSON.stringify({
+      plugin_id: pluginId,
+      project_id: project?.project?.id,
+    }),
+  });
+  await refresh();
+  setMessage(action === "load" ? "插件已加载。" : "插件已卸载，相关流程会暂停直到重新加载。");
+}
+
 async function calibrateModel() {
   const project = currentProject();
   if (!project) return setMessage("请先载入或创建项目。");
@@ -688,7 +775,7 @@ async function previewData() {
     return null;
   }
   setMessage("正在预览并校验数据...");
-  const content = await file.text();
+  const content = await readDataFileContent(file);
   const preview = await api("/api/datasets/preview", {
     method: "POST",
     body: JSON.stringify({
@@ -720,6 +807,24 @@ function collectRunParams() {
     params[input.dataset.runParam] = Number(input.value);
   });
   return params;
+}
+
+async function readDataFileContent(file) {
+  if (!isHdf5File(file.name)) {
+    return file.text();
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function isHdf5File(filename) {
+  return /\.(h5|hdf5)$/i.test(filename || "");
 }
 
 async function saveConfig() {
@@ -799,6 +904,25 @@ function formatTime(value) {
   }
 }
 
+function statusLabel(status) {
+  const labels = {
+    pending_user_confirmation: "待人工确认",
+    accepted_by_user: "已人工接受",
+    rejected_by_user: "已人工拒绝",
+    rejected_by_safety: "安全约束拒绝",
+  };
+  return labels[status] || status || "-";
+}
+
+function pluginStatusLabel(status) {
+  const labels = {
+    active: "已加载",
+    unloaded: "已卸载",
+    optional: "可选依赖",
+  };
+  return labels[status] || status || "-";
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -841,6 +965,8 @@ el("downloadTemplateBtn").addEventListener("click", () => downloadTemplate());
 el("recommendBtn").addEventListener("click", () => createRecommendation().catch((error) => setMessage(error.message)));
 el("calibrateModelBtn").addEventListener("click", () => calibrateModel().catch((error) => setMessage(error.message)));
 el("reportBtn").addEventListener("click", () => generateReport().catch((error) => setMessage(error.message)));
+el("exportProjectBtn").addEventListener("click", () => exportProject());
+el("exportEventsBtn").addEventListener("click", () => exportEvents());
 el("previewDataBtn").addEventListener("click", () => previewData().catch((error) => setMessage(error.message)));
 el("importRunBtn").addEventListener("click", () => importRun().catch((error) => setMessage(error.message)));
 el("simulateRunBtn").addEventListener("click", () => simulateRun().catch((error) => setMessage(error.message)));
@@ -857,6 +983,20 @@ document.addEventListener("click", (event) => {
   const target = event.target.closest("[data-verify-rec]");
   if (target) {
     verifyRecommendation(target.dataset.verifyRec).catch((error) => setMessage(error.message));
+  }
+  const decisionTarget = event.target.closest("[data-rec-decision]");
+  if (decisionTarget) {
+    decideRecommendation(
+      decisionTarget.dataset.recId,
+      decisionTarget.dataset.recDecision,
+    ).catch((error) => setMessage(error.message));
+  }
+  const pluginTarget = event.target.closest("[data-plugin-action]");
+  if (pluginTarget) {
+    setPluginLoaded(
+      pluginTarget.dataset.pluginId,
+      pluginTarget.dataset.pluginAction,
+    ).catch((error) => setMessage(error.message));
   }
 });
 window.addEventListener("resize", () => drawChart(currentRun()));

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import json
+import csv
 from copy import deepcopy
+from io import StringIO
 from pathlib import Path
 
 from .constraints import SiCGaNConstraintPlugin, TrackInsulationConstraintPlugin
-from .data_plugins import plugin_for_filename
+from .data_plugins import hdf5_available, plugin_for_filename
 from .experiments import all_experiment_manifests, csv_template, experiment_manifest
+from .external_plugins import discover_external_plugins
 from .features import SiCGaNFeaturePlugin, TrackInsulationFeaturePlugin
 from .models import default_config_for, new_id, utcnow
 from .optimizer import BayesianOptimizerPlugin, HeuristicOptimizerPlugin
+from .plugin_runtime import PluginSpec, RuntimePluginManager
 from .preprocessing import DataPreprocessorPlugin
 from .reports import HTMLReportPlugin
 from .storage import JsonStore
@@ -17,9 +21,10 @@ from .twins import SiCGaNDigitalTwinPlugin, TrackInsulationDigitalTwinPlugin
 
 
 class ExperimentOrchestrator:
-    def __init__(self, store: JsonStore, sample_dir: Path):
+    def __init__(self, store: JsonStore, sample_dir: Path, plugin_dir: Path | None = None):
         self.store = store
         self.sample_dir = sample_dir
+        self.plugin_dir = plugin_dir or sample_dir.parent / "plugins"
         self.feature_plugins = {
             "sic_gan_switching": SiCGaNFeaturePlugin(),
             "track_insulation": TrackInsulationFeaturePlugin(),
@@ -32,12 +37,19 @@ class ExperimentOrchestrator:
             "heuristic": HeuristicOptimizerPlugin(),
             "bayesian": BayesianOptimizerPlugin(),
         }
+        self.optimizer_plugin_ids = {
+            "heuristic": "optimizer:HeuristicOptimizerPlugin",
+            "bayesian": "optimizer:BayesianOptimizerPlugin",
+        }
         self.preprocessor = DataPreprocessorPlugin()
         self.constraint_plugins = {
             "sic_gan_switching": SiCGaNConstraintPlugin(),
             "track_insulation": TrackInsulationConstraintPlugin(),
         }
         self.reporter = HTMLReportPlugin()
+        self.external_plugins = discover_external_plugins(self.plugin_dir)
+        self._register_external_plugins()
+        self.plugin_runtime = RuntimePluginManager(store, self._plugin_specs())
 
     def state(self) -> dict:
         db = self.store.all()
@@ -52,23 +64,19 @@ class ExperimentOrchestrator:
         }
 
     def plugin_catalog(self) -> list[dict]:
-        catalog = [
-            {"name": self.preprocessor.name, "type": "data_processing", "status": "active"},
-            {"name": "CSVDataSourcePlugin", "type": "data_source", "status": "active"},
-            {"name": "JSONDataSourcePlugin", "type": "data_source", "status": "active"},
-            {"name": "HTMLReportPlugin", "type": "report", "status": "active"},
-        ]
-        for optimizer in self.optimizers.values():
-            catalog.append({"name": optimizer.name, "type": "optimizer", "status": "active"})
-        for manifest in all_experiment_manifests():
-            for role, name in manifest.get("plugins", {}).items():
-                catalog.append({
-                    "name": name,
-                    "type": role,
-                    "experiment_type": manifest["type"],
-                    "status": "active",
-                })
-        return catalog
+        return self.plugin_runtime.catalog()
+
+    def load_plugin(self, plugin_id: str, project_id: str | None = None) -> dict:
+        plugin = self.plugin_runtime.load(plugin_id)
+        if project_id and self.store.get_project(project_id):
+            self._log_event(project_id, "plugin.loaded", f"加载插件 {plugin['name']}", {"plugin_id": plugin["id"]})
+        return plugin
+
+    def unload_plugin(self, plugin_id: str, project_id: str | None = None) -> dict:
+        plugin = self.plugin_runtime.unload(plugin_id)
+        if project_id and self.store.get_project(project_id):
+            self._log_event(project_id, "plugin.unloaded", f"卸载插件 {plugin['name']}", {"plugin_id": plugin["id"]})
+        return plugin
 
     def create_project(
         self,
@@ -119,6 +127,8 @@ class ExperimentOrchestrator:
     ) -> dict:
         manifest = self._manifest(project_id)
         plugin = plugin_for_filename(filename)
+        self._require_plugin_loaded(plugin.__class__.__name__)
+        self._require_plugin_loaded(self.preprocessor.name)
         preview = plugin.preview_text(
             content,
             manifest["required_signals"],
@@ -140,6 +150,8 @@ class ExperimentOrchestrator:
     ) -> dict:
         manifest = self._manifest(project_id)
         plugin = plugin_for_filename(filename)
+        self._require_plugin_loaded(plugin.__class__.__name__)
+        self._require_plugin_loaded(self.preprocessor.name)
         preview = self.preview_dataset(project_id, filename, content, field_mapping)
         if not preview["valid"]:
             raise ValueError("; ".join(preview["errors"]))
@@ -177,7 +189,10 @@ class ExperimentOrchestrator:
             raise ValueError("Dataset not found.")
         content = Path(dataset["file_path"]).read_text(encoding="utf-8")
         manifest = self._manifest(project_id)
-        rows = plugin_for_filename(dataset["filename"]).load_text(
+        plugin = plugin_for_filename(dataset["filename"])
+        self._require_plugin_loaded(plugin.__class__.__name__)
+        self._require_plugin_loaded(self.preprocessor.name)
+        rows = plugin.load_text(
             content,
             manifest["required_signals"],
             dataset.get("field_mapping"),
@@ -219,6 +234,7 @@ class ExperimentOrchestrator:
         manifest = self._manifest(project_id)
         clean_params = self._clean_parameters(parameters)
         model_mode = mode if mode in {"fast", "high_fidelity"} else "fast"
+        self._require_plugin_loaded(self.preprocessor.name)
         rows = self._model_plugin(project_id).simulate(clean_params, config, model_mode)
         rows, preprocessing = self.preprocessor.process(rows, manifest)
         metrics = self._feature_plugin(project_id).extract(rows, config)
@@ -314,13 +330,16 @@ class ExperimentOrchestrator:
         config = self._config(project_id)
         runs = self.store.runs_for_project(project_id)
         optimizer_key = optimizer_name if optimizer_name in self.optimizers else "bayesian"
-        draft = self.optimizers[optimizer_key].recommend(runs, config)
+        optimizer = self.optimizers[optimizer_key]
+        optimizer_display_name = getattr(optimizer, "name", optimizer.__class__.__name__)
+        self._require_plugin_loaded(self.optimizer_plugin_ids.get(optimizer_key, optimizer_display_name))
+        draft = optimizer.recommend(runs, config)
         safety = self._constraint_plugin(project_id).check(draft, config)
         recommendation = {
             "id": new_id("rec"),
             "project_id": project_id,
             "config_id": config["id"],
-            "optimizer": draft.get("optimizer") or self.optimizers[optimizer_key].name,
+            "optimizer": draft.get("optimizer") or optimizer_display_name,
             "source_run_ids": [run["id"] for run in runs[-5:]],
             "recommended_parameters": draft["recommended_parameters"],
             "expected_improvement": draft.get("expected_improvement", {}),
@@ -342,7 +361,71 @@ class ExperimentOrchestrator:
         )
         return saved
 
+    def decide_recommendation(
+        self,
+        project_id: str,
+        recommendation_id: str,
+        decision: str,
+        note: str = "",
+    ) -> dict:
+        recommendation = self.store.get_recommendation(recommendation_id)
+        if not recommendation or recommendation["project_id"] != project_id:
+            raise ValueError("Recommendation not found.")
+        if decision not in {"accept", "reject"}:
+            raise ValueError("Decision must be accept or reject.")
+        if decision == "accept" and not recommendation.get("safety_result", {}).get("passed"):
+            raise ValueError("Safety rejected recommendations cannot be accepted.")
+
+        status = "accepted_by_user" if decision == "accept" else "rejected_by_user"
+        recommendation = deepcopy(recommendation)
+        recommendation["status"] = status
+        recommendation["decision_note"] = note
+        recommendation["decided_at"] = utcnow()
+        saved = self.store.save_recommendation(recommendation)
+        self._log_event(
+            project_id,
+            f"recommendation.{decision}ed",
+            "人工确认推荐参数" if decision == "accept" else "人工拒绝推荐参数",
+            {"recommendation_id": recommendation_id, "status": status, "note": note},
+        )
+        return saved
+
+    def export_project_json(self, project_id: str) -> str:
+        bundle = deepcopy(self._bundle(project_id))
+        if not bundle["project"]:
+            raise ValueError("Project not found.")
+        for dataset in bundle.get("datasets", []):
+            path = Path(dataset.get("file_path", ""))
+            dataset["file_path"] = path.name
+            dataset["content"] = path.read_text(encoding="utf-8") if path.exists() else None
+        for report in bundle.get("reports", []):
+            path = Path(report.get("path", ""))
+            report["path"] = path.name
+        payload = {
+            "schema_version": "lab_mvp.project_export.v1",
+            "exported_at": utcnow(),
+            "bundle": bundle,
+        }
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+
+    def export_events_csv(self, project_id: str) -> str:
+        bundle = self._bundle(project_id)
+        if not bundle["project"]:
+            raise ValueError("Project not found.")
+        output = StringIO()
+        writer = csv.DictWriter(output, fieldnames=["created_at", "type", "message", "details_json"])
+        writer.writeheader()
+        for event in bundle.get("events", []):
+            writer.writerow({
+                "created_at": event.get("created_at", ""),
+                "type": event.get("type", ""),
+                "message": event.get("message", ""),
+                "details_json": json.dumps(event.get("details", {}), ensure_ascii=False),
+            })
+        return output.getvalue()
+
     def generate_report(self, project_id: str) -> dict:
+        self._require_plugin_loaded(self.reporter.name)
         bundle = self._bundle(project_id)
         if not bundle["project"]:
             raise ValueError("Project not found.")
@@ -412,6 +495,55 @@ class ExperimentOrchestrator:
             config = self.store.save_config(default_config_for(experiment_type, project_id))
         return config
 
+    def _plugin_specs(self) -> list[PluginSpec]:
+        specs = [
+            PluginSpec("data_processing:DataPreprocessorPlugin", self.preprocessor.name, "data_processing"),
+            PluginSpec("data_source:CSVDataSourcePlugin", "CSVDataSourcePlugin", "data_source"),
+            PluginSpec("data_source:JSONDataSourcePlugin", "JSONDataSourcePlugin", "data_source"),
+            PluginSpec(
+                "data_source:HDF5DataSourcePlugin",
+                "HDF5DataSourcePlugin",
+                "data_source",
+                default_loaded=hdf5_available(),
+                available=hdf5_available(),
+                notes="Requires h5py and base64 file payloads in the local web API.",
+            ),
+            PluginSpec("optimizer:HeuristicOptimizerPlugin", HeuristicOptimizerPlugin.name, "optimizer", key="heuristic"),
+            PluginSpec("optimizer:BayesianOptimizerPlugin", BayesianOptimizerPlugin.name, "optimizer", key="bayesian"),
+            PluginSpec("report:HTMLReportPlugin", self.reporter.name, "report"),
+        ]
+        for experiment_type, plugin in self.feature_plugins.items():
+            specs.append(PluginSpec(
+                f"feature:{experiment_type}:{plugin.name}",
+                plugin.name,
+                "feature",
+                experiment_type,
+            ))
+        for experiment_type, plugin in self.model_plugins.items():
+            specs.append(PluginSpec(
+                f"model:{experiment_type}:{plugin.name}",
+                plugin.name,
+                "model",
+                experiment_type,
+            ))
+        for experiment_type, plugin in self.constraint_plugins.items():
+            specs.append(PluginSpec(
+                f"constraint:{experiment_type}:{plugin.name}",
+                plugin.name,
+                "constraint",
+                experiment_type,
+            ))
+        specs.extend(package.spec for package in self.external_plugins)
+        return specs
+
+    def _register_external_plugins(self) -> None:
+        for package in self.external_plugins:
+            if package.spec.type == "optimizer" and package.instance is not None:
+                if not getattr(package.instance, "name", None):
+                    setattr(package.instance, "name", package.spec.name)
+                self.optimizers[package.spec.key or package.spec.name] = package.instance
+                self.optimizer_plugin_ids[package.spec.key or package.spec.name] = package.spec.id
+
     def _bundle(self, project_id: str) -> dict:
         bundle = self.store.project_bundle(project_id)
         if bundle["project"]:
@@ -428,19 +560,28 @@ class ExperimentOrchestrator:
         project = self.store.get_project(project_id)
         if not project:
             raise ValueError("Project not found.")
-        return self.feature_plugins[project["experiment_type"]]
+        plugin = self.feature_plugins[project["experiment_type"]]
+        self._require_plugin_loaded(plugin.name)
+        return plugin
 
     def _model_plugin(self, project_id: str):
         project = self.store.get_project(project_id)
         if not project:
             raise ValueError("Project not found.")
-        return self.model_plugins[project["experiment_type"]]
+        plugin = self.model_plugins[project["experiment_type"]]
+        self._require_plugin_loaded(plugin.name)
+        return plugin
 
     def _constraint_plugin(self, project_id: str):
         project = self.store.get_project(project_id)
         if not project:
             raise ValueError("Project not found.")
-        return self.constraint_plugins[project["experiment_type"]]
+        plugin = self.constraint_plugins[project["experiment_type"]]
+        self._require_plugin_loaded(plugin.name)
+        return plugin
+
+    def _require_plugin_loaded(self, plugin_id_or_name: str) -> None:
+        self.plugin_runtime.require(plugin_id_or_name)
 
     def _calibration_for_metrics(self, experiment_type: str, actual: dict, simulated: dict) -> dict:
         if experiment_type == "track_insulation":

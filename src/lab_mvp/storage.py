@@ -15,6 +15,7 @@ EMPTY_DB = {
     "recommendations": [],
     "reports": [],
     "events": [],
+    "plugins": [],
 }
 
 
@@ -33,8 +34,11 @@ class JsonStore:
     def all(self) -> dict[str, list[dict[str, Any]]]:
         return self._read()
 
-    def reset(self) -> None:
-        self._write({key: [] for key in EMPTY_DB})
+    def reset(self, preserve_plugins: bool = True) -> None:
+        plugins = self._read().get("plugins", []) if preserve_plugins else []
+        next_db = {key: [] for key in EMPTY_DB}
+        next_db["plugins"] = plugins
+        self._write(next_db)
 
     def create_project(self, name: str, experiment_type: str, description: str = "") -> dict:
         db = self._read()
@@ -93,6 +97,9 @@ class JsonStore:
 
     def save_recommendation(self, recommendation: dict) -> dict:
         db = self._read()
+        db["recommendations"] = [
+            item for item in db["recommendations"] if item["id"] != recommendation["id"]
+        ]
         db["recommendations"].append(recommendation)
         self._write(db)
         return recommendation
@@ -108,6 +115,21 @@ class JsonStore:
         db["events"].append(event)
         self._write(db)
         return event
+
+    def plugin_states(self) -> dict[str, dict]:
+        return {item["id"]: item for item in self._read()["plugins"]}
+
+    def save_plugin_state(self, plugin_id: str, loaded: bool) -> dict:
+        db = self._read()
+        state = {
+            "id": plugin_id,
+            "loaded": bool(loaded),
+            "updated_at": utcnow(),
+        }
+        db["plugins"] = [item for item in db["plugins"] if item["id"] != plugin_id]
+        db["plugins"].append(state)
+        self._write(db)
+        return state
 
     def project_bundle(self, project_id: str) -> dict:
         db = self._read()
