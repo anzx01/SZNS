@@ -48,6 +48,7 @@ class ExperimentOrchestrator:
         }
         self.reporters: dict[str, object] = {"html": HTMLReportPlugin()}
         self.data_source_plugins: dict[str, object] = {}
+        self.extra_feature_plugins: dict[str, list] = {}
         self.external_plugins = discover_external_plugins(self.plugin_dir)
         self._register_external_plugins()
         self.plugin_runtime = RuntimePluginManager(store, self._plugin_specs())
@@ -199,7 +200,7 @@ class ExperimentOrchestrator:
             dataset.get("field_mapping"),
         )
         rows, preprocessing = self.preprocessor.process(rows, manifest)
-        metrics = self._feature_plugin(project_id).extract(rows, config)
+        metrics = self._extract_metrics(project_id, rows, config)
         run = {
             "id": new_id("run"),
             "project_id": project_id,
@@ -238,7 +239,7 @@ class ExperimentOrchestrator:
         self._require_plugin_loaded(self.preprocessor.name)
         rows = self._model_plugin(project_id).simulate(clean_params, config, model_mode)
         rows, preprocessing = self.preprocessor.process(rows, manifest)
-        metrics = self._feature_plugin(project_id).extract(rows, config)
+        metrics = self._extract_metrics(project_id, rows, config)
         run = {
             "id": new_id("run"),
             "project_id": project_id,
@@ -540,6 +541,7 @@ class ExperimentOrchestrator:
 
     def reload_external_plugins(self) -> list[dict]:
         self.external_plugins = discover_external_plugins(self.plugin_dir)
+        self.extra_feature_plugins.clear()
         self._register_external_plugins()
         self.plugin_runtime = RuntimePluginManager(self.store, self._plugin_specs())
         return self.plugin_catalog()
@@ -563,7 +565,10 @@ class ExperimentOrchestrator:
                 self.optimizers[key] = instance
                 self.optimizer_plugin_ids[key] = package.spec.id
             elif plugin_type == "feature" and package.spec.experiment_type:
-                self.feature_plugins[package.spec.experiment_type] = instance
+                exp_type = package.spec.experiment_type
+                if exp_type not in self.extra_feature_plugins:
+                    self.extra_feature_plugins[exp_type] = []
+                self.extra_feature_plugins[exp_type].append(instance)
             elif plugin_type == "model" and package.spec.experiment_type:
                 self.model_plugins[package.spec.experiment_type] = instance
             elif plugin_type == "constraint" and package.spec.experiment_type:
@@ -585,6 +590,15 @@ class ExperimentOrchestrator:
         if not project:
             raise ValueError("Project not found.")
         return experiment_manifest(project["experiment_type"])
+
+    def _extract_metrics(self, project_id: str, rows: list[dict], config: dict) -> dict:
+        plugin = self._feature_plugin(project_id)
+        metrics = plugin.extract(rows, config)
+        project = self.store.get_project(project_id)
+        for extra in self.extra_feature_plugins.get(project["experiment_type"], []):
+            self._require_plugin_loaded(extra.name)
+            metrics = {**metrics, **extra.extract(rows, config)}
+        return metrics
 
     def _feature_plugin(self, project_id: str):
         project = self.store.get_project(project_id)

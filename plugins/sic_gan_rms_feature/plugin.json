@@ -1,0 +1,11 @@
+{
+  "id": "feature:SiCGaNRmsFeaturePlugin",
+  "name": "SiCGaNRmsFeaturePlugin",
+  "type": "feature",
+  "experiment_type": "sic_gan_switching",
+  "version": "0.1.0",
+  "entrypoint": "plugin:SiCGaNRmsFeaturePlugin",
+  "description": "为 SiC/GaN 关断波形补充 RMS 分析：Vds 有效值、Ids 有效值、瞬时功率峰值和能量损耗估算。",
+  "default_loaded": true,
+  "notes": "Loaded from plugins/sic_gan_rms_feature/plugin.py"
+}

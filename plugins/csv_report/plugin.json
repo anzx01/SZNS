@@ -1,0 +1,11 @@
+{
+  "id": "report:CsvReportPlugin",
+  "name": "CsvReportPlugin",
+  "type": "report",
+  "key": "csv",
+  "version": "0.1.0",
+  "entrypoint": "plugin:CsvReportPlugin",
+  "description": "将实验 run 指标和最近推荐以 CSV 格式导出，便于在 Excel 或 Python 中进一步分析。",
+  "default_loaded": true,
+  "notes": "Loaded from plugins/csv_report/plugin.py"
+}

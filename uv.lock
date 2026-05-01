@@ -90,6 +90,7 @@ bayesian = [
     { name = "scikit-optimize" },
 ]
 dev = [
+    { name = "iniconfig" },
     { name = "pytest" },
 ]
 hdf5 = [
@@ -99,6 +100,7 @@ hdf5 = [
 [package.metadata]
 requires-dist = [
     { name = "h5py", marker = "extra == 'hdf5'", specifier = ">=3.11" },
+    { name = "iniconfig", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "scikit-optimize", marker = "extra == 'bayesian'", specifier = ">=0.10" },
 ]

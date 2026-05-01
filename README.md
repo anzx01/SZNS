@@ -28,7 +28,10 @@
 - 前端提供插件目录，可查看数据源、预处理、模型、特征、约束、优化和报告插件状态。
 - 支持对已注册插件进行运行时加载 / 卸载，状态持久化到本地 store；卸载后相关流程会阻断并提示重新加载。
 - 支持扫描 `plugins/<package>/plugin.json + plugin.py` 外部插件包；外部包支持 `optimizer`、`feature`、`model`、`constraint`、`report`、`data_source` 六种类型。
+- `feature` 类型外部插件采用追加合并模式，新增指标字段不会替换内置特征提取结果。
+- 已提供 4 种类型外部插件样例：`conservative_optimizer`（optimizer）、`sic_gan_rms_feature`（feature）、`track_aging_model`（model）、`csv_report`（report）。
 - 支持通过"重新扫描"按钮（`POST /api/plugins/reload`）热重载外部插件，无需重启服务器。
+- 提供 CLI 插件校验工具，可在提交插件包前验证接口合规：`python -m lab_mvp.plugins validate plugins/<package>` 或 `python -m lab_mvp.plugins list plugins/`。
 - 前端工作台采用单屏仪表盘布局，config / manifest / 事件日志 / 插件目录四个面板支持折叠，折叠状态持久化到本地存储。
 - 优化器下拉框会根据当前已加载的优化器插件动态生成。
 
@@ -127,11 +130,27 @@ class ConservativeOptimizerPlugin:
 
 新增插件包后，点击工作台插件目录中的"重新扫描"按钮即可加载，无需重启服务器。
 
+## CLI 插件校验工具
+
+在提交新插件包之前，可以先用 CLI 工具校验格式和接口合规性：
+
+```bash
+# 校验单个插件包
+uv run python -m lab_mvp.plugins validate plugins/my_plugin
+
+# 扫描 plugins/ 目录下所有包
+uv run python -m lab_mvp.plugins list plugins/
+```
+
+校验项包括：`plugin.json` 必填字段（`id`、`name`、`type`、`entrypoint`）、插件类型是否受支持、entrypoint 模块文件是否存在、插件实例是否实现了所有必须方法、类型特定的建议（如 `data_source` 缺少 `file_extensions` 时会给出警告）。
+
 ## 测试
 
 ```bash
 bash scripts/test.sh
 ```
+
+当前共 55 条测试（27 核心闭环 + 28 插件样例与 CLI 工具）。测试日志输出到 `logs/test.log`。
 
 当前单元测试覆盖核心闭环、双实验类型、数据预览、字段映射、数字孪生、推荐仿真、模型校准、插件目录、动态加载 / 卸载、外部插件包扫描、推荐人工决策、项目导出、事件导出和 HDF5 可选适配器，共 27 条。
 

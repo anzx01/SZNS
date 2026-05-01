@@ -1,12 +1,12 @@
 # 开发进度
 
-更新时间：2026-05-01
+更新时间：2026-05-02
 
 ## 当前结论
 
 MVP 本地实验闭环已全面完成。平台现在可以在本地单机运行，完成项目创建、数据导入、字段映射、指标提取、参数推荐、安全校验、人工确认、仿真验证、模型校准、报告生成、事件追踪、项目导出和插件管理。
 
-外部插件包机制已扩展到全部 6 种类型（`optimizer`、`feature`、`model`、`constraint`、`report`、`data_source`），支持热重载 API 和浏览器打印报告，工作台面板支持折叠。
+外部插件包机制已扩展到全部 6 种类型（`optimizer`、`feature`、`model`、`constraint`、`report`、`data_source`），支持热重载 API 和浏览器打印报告，工作台面板支持折叠。已提供 4 种类型的样例包（`optimizer`、`feature`、`model`、`report`）。CLI 校验工具已实现，可通过 `python -m lab_mvp.plugins validate` 命令校验外部插件包是否符合接口规范。
 
 完整愿景中的真实设备采集、SPICE / Simscape 运行时、正式 RL 训练、权限控制和社区插件市场仍属于后续集成阶段。
 
@@ -50,7 +50,10 @@ MVP 本地实验闭环已全面完成。平台现在可以在本地单机运行�
 - 优化推荐：
   - 启发式优化器
   - 轻量贝叶斯式优化器
-  - 外部保守优化器样例包
+  - 外部保守优化器样例包（`conservative_optimizer`）
+  - 外部 RMS 功率特征分析样例包（`sic_gan_rms_feature`，追加合并模式）
+  - 外部轨道绝缘加速老化模型样例包（`track_aging_model`）
+  - 外部 CSV 格式报告生成样例包（`csv_report`）
 - 安全约束：
   - 参数边界检查
   - 风险阈值检查
@@ -80,6 +83,11 @@ MVP 本地实验闭环已全面完成。平台现在可以在本地单机运行�
 - 前端可折叠面板：
   - config / manifest / event / plugin 四个面板支持折叠
   - 折叠状态持久化到 `localStorage`
+- CLI 插件校验工具：
+  - `python -m lab_mvp.plugins validate plugins/<package>` 校验单个包
+  - `python -m lab_mvp.plugins list plugins/` 扫描并汇总目录下所有插件包
+  - 校验项：`plugin.json` 必填字段、插件类型、接口方法、警告建议
+  - 子包位于 `src/lab_mvp/plugins/`
 
 ## 外部插件包
 
@@ -87,10 +95,21 @@ MVP 本地实验闭环已全面完成。平台现在可以在本地单机运行�
 
 ```text
 plugins/
-  conservative_optimizer/
+  conservative_optimizer/      # optimizer 类型样例
+    plugin.json
+    plugin.py
+  sic_gan_rms_feature/         # feature 类型样例（追加 RMS 功率分析到 SiC/GaN 指标）
+    plugin.json
+    plugin.py
+  track_aging_model/           # model 类型样例（轨道绝缘加速老化数字孪生）
+    plugin.json
+    plugin.py
+  csv_report/                  # report 类型样例（CSV 格式实验报告，可作为 format=csv 使用）
     plugin.json
     plugin.py
 ```
+
+`feature` 类型外部插件采用**追加合并**模式：外部插件的指标字段会 merge 到内置特征提取结果中，不会替换内置插件。`model`、`constraint` 类型仍为覆盖模式（支持完全替换内置实现）。
 
 当前支持的外部插件类型及必须实现的方法：
 
@@ -121,7 +140,7 @@ plugins/
 bash scripts/test.sh
 ```
 
-当前测试覆盖数量：27 条。
+当前测试覆盖数量：55 条（27 核心 + 28 插件样例与 CLI 工具）。
 
 覆盖范围：
 
@@ -139,6 +158,8 @@ bash scripts/test.sh
 - 项目导出
 - 事件导出
 - HDF5 可选适配器
+- feature / model / report 外部插件样例（3 个新包）
+- CLI 校验工具（validate、list 命令）
 
 ## 已知边界
 
@@ -154,8 +175,6 @@ bash scripts/test.sh
 
 1. 增加真实数据采集适配器（串口、文件夹监听、HTTP 数据源），以 `data_source` 外部插件接入。
 2. 增加真实 SPICE / Simscape 适配层，以 `model` 外部插件接入。
-3. 提供更多外部插件包样例（`feature`、`model`、`report` 类型）。
-4. 增加插件包 CLI 校验工具，例如 `python -m lab_mvp.plugins validate plugins/<package>`。
 
 ## 运行方式
 

@@ -1,0 +1,11 @@
+{
+  "id": "model:TrackAgingModelPlugin",
+  "name": "TrackAgingModelPlugin",
+  "type": "model",
+  "experiment_type": "track_insulation",
+  "version": "0.1.0",
+  "entrypoint": "plugin:TrackAgingModelPlugin",
+  "description": "轨道绝缘加速老化数字孪生：模拟长期湿热应力下绝缘电阻衰退曲线，可用于预测绝缘寿命。",
+  "default_loaded": true,
+  "notes": "Loaded from plugins/track_aging_model/plugin.py"
+}
