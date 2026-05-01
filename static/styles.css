@@ -889,3 +889,42 @@ th {
     display: none;
   }
 }
+
+/* ── 可折叠面板 ───────────────────────────────────────────── */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  gap: 8px;
+}
+
+.panel-header > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.collapse-arrow {
+  font-size: 14px;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+section.collapsed .collapse-arrow {
+  transform: rotate(-90deg);
+}
+
+.panel-collapsible-content {
+  overflow: hidden;
+  transition: max-height 0.22s ease, opacity 0.18s ease;
+  max-height: 2000px;
+  opacity: 1;
+}
+
+section.collapsed .panel-collapsible-content {
+  max-height: 0;
+  opacity: 0;
+}
+

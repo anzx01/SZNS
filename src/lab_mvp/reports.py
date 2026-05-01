@@ -37,10 +37,24 @@ class HTMLReportPlugin:
     th {{ color: #5a665d; background: #eef1e8; }}
     .card {{ background: #fff; border: 1px solid #dbe0d5; border-radius: 8px; padding: 16px; margin: 12px 0; }}
     .muted {{ color: #68746b; }}
+    .print-btn {{
+      display: inline-block; margin-bottom: 24px; padding: 8px 20px;
+      background: #394d3f; color: #fff; border: none; border-radius: 6px;
+      font-size: 14px; cursor: pointer;
+    }}
+    .print-btn:hover {{ background: #2d3d32; }}
+    @media print {{
+      .print-btn {{ display: none; }}
+      body {{ background: #fff; }}
+      main {{ padding: 20px; }}
+      .card {{ break-inside: avoid; }}
+      table {{ break-inside: avoid; }}
+    }}
   </style>
 </head>
 <body>
   <main>
+    <button class="print-btn" onclick="window.print()">打印为 PDF</button>
     <h1>{escape(project["name"])}</h1>
     <p class="muted">实验类型：{escape(project["experiment_type"])}。本报告由 MVP 平台自动生成。</p>
     <section class="card">

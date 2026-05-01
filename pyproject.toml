@@ -1,0 +1,18 @@
+[project]
+name = "lab-mvp"
+version = "0.1.0"
+description = "实验室自适应优化验证平台 MVP"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+bayesian = ["scikit-optimize>=0.10"]
+hdf5 = ["h5py>=3.11"]
+dev = ["pytest>=8.3", "iniconfig"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lab_mvp"]

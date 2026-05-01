@@ -126,59 +126,72 @@
         </div>
       </section>
 
-      <section class="config-panel">
-        <div class="panel-heading">
+      <section class="config-panel" id="panel-config">
+        <div class="panel-heading panel-header" data-panel="panel-config">
           <div>
             <span class="panel-kicker">Config</span>
             <h2>参数空间与安全阈值</h2>
           </div>
-          <button id="saveConfigBtn" class="secondary-action">保存配置版本</button>
+          <button id="saveConfigBtn" class="secondary-action" onclick="event.stopPropagation()">保存配置版本</button>
+          <span class="collapse-arrow">▾</span>
         </div>
-        <div class="config-grid">
-          <div>
-            <h3>参数范围</h3>
-            <div id="parameterConfig" class="config-fields"></div>
-          </div>
-          <div>
-            <h3>安全阈值</h3>
-            <div id="safetyConfig" class="config-fields"></div>
-          </div>
-          <div>
-            <h3>目标权重</h3>
-            <div id="weightConfig" class="config-fields"></div>
+        <div class="panel-collapsible-content">
+          <div class="config-grid">
+            <div>
+              <h3>参数范围</h3>
+              <div id="parameterConfig" class="config-fields"></div>
+            </div>
+            <div>
+              <h3>安全阈值</h3>
+              <div id="safetyConfig" class="config-fields"></div>
+            </div>
+            <div>
+              <h3>目标权重</h3>
+              <div id="weightConfig" class="config-fields"></div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="manifest-panel">
-        <div class="panel-heading">
+      <section class="manifest-panel" id="panel-manifest">
+        <div class="panel-heading panel-header" data-panel="panel-manifest">
           <div>
             <span class="panel-kicker">Manifest</span>
             <h2>实验插件契约</h2>
           </div>
           <span id="manifestType" class="manifest-type">plugin</span>
+          <span class="collapse-arrow">▾</span>
         </div>
-        <div id="manifestGrid" class="manifest-grid"></div>
+        <div class="panel-collapsible-content">
+          <div id="manifestGrid" class="manifest-grid"></div>
+        </div>
       </section>
 
-      <section class="event-panel">
-        <div class="panel-heading">
+      <section class="event-panel" id="panel-events">
+        <div class="panel-heading panel-header" data-panel="panel-events">
           <div>
             <span class="panel-kicker">Log</span>
             <h2>实验日志</h2>
           </div>
+          <span class="collapse-arrow">▾</span>
         </div>
-        <div id="eventLog" class="event-log"></div>
+        <div class="panel-collapsible-content">
+          <div id="eventLog" class="event-log"></div>
+        </div>
       </section>
 
-      <section class="plugin-panel">
-        <div class="panel-heading">
+      <section class="plugin-panel" id="panel-plugins">
+        <div class="panel-heading panel-header" data-panel="panel-plugins">
           <div>
             <span class="panel-kicker">Plugins</span>
             <h2>插件目录</h2>
           </div>
+          <button id="reloadPluginsBtn" class="secondary-action" onclick="event.stopPropagation()">重新扫描</button>
+          <span class="collapse-arrow">▾</span>
         </div>
-        <div id="pluginCatalog" class="plugin-catalog"></div>
+        <div class="panel-collapsible-content">
+          <div id="pluginCatalog" class="plugin-catalog"></div>
+        </div>
       </section>
     </main>
   </div>

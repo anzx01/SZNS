@@ -17,6 +17,7 @@ class PluginSpec:
     available: bool = True
     required: bool = False
     notes: str = ""
+    file_extensions: tuple[str, ...] = ()
 
 
 class RuntimePluginManager:

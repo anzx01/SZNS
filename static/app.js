@@ -958,6 +958,35 @@ function labelFor(key) {
   return labels[key] || key;
 }
 
+async function reloadPlugins() {
+  setMessage("正在重新扫描插件目录...");
+  await api("/api/plugins/reload", { method: "POST", body: "{}" });
+  await refresh();
+  setMessage("插件目录已重新扫描。");
+}
+
+function initCollapsiblePanels() {
+  const STORAGE_KEY = "lab_mvp_collapsed_panels";
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+
+  document.querySelectorAll(".panel-header[data-panel]").forEach((header) => {
+    const panelId = header.dataset.panel;
+    const section = document.getElementById(panelId);
+    if (!section) return;
+
+    if (saved[panelId]) {
+      section.classList.add("collapsed");
+    }
+
+    header.addEventListener("click", () => {
+      section.classList.toggle("collapsed");
+      const collapsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      collapsed[panelId] = section.classList.contains("collapsed");
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(collapsed));
+    });
+  });
+}
+
 el("loadDemo").addEventListener("click", () => loadDemo().catch((error) => setMessage(error.message)));
 el("loadTrackDemo").addEventListener("click", () => loadTrackDemo().catch((error) => setMessage(error.message)));
 el("createProjectBtn").addEventListener("click", () => createBlankProject().catch((error) => setMessage(error.message)));
@@ -971,6 +1000,7 @@ el("previewDataBtn").addEventListener("click", () => previewData().catch((error)
 el("importRunBtn").addEventListener("click", () => importRun().catch((error) => setMessage(error.message)));
 el("simulateRunBtn").addEventListener("click", () => simulateRun().catch((error) => setMessage(error.message)));
 el("saveConfigBtn").addEventListener("click", () => saveConfig().catch((error) => setMessage(error.message)));
+el("reloadPluginsBtn").addEventListener("click", () => reloadPlugins().catch((error) => setMessage(error.message)));
 el("dataFile").addEventListener("change", () => {
   state.importPreview = null;
   renderImportPreview();
@@ -1001,4 +1031,5 @@ document.addEventListener("click", (event) => {
 });
 window.addEventListener("resize", () => drawChart(currentRun()));
 
+initCollapsiblePanels();
 refresh().catch((error) => setMessage(error.message));

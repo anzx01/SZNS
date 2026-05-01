@@ -46,7 +46,8 @@ class ExperimentOrchestrator:
             "sic_gan_switching": SiCGaNConstraintPlugin(),
             "track_insulation": TrackInsulationConstraintPlugin(),
         }
-        self.reporter = HTMLReportPlugin()
+        self.reporters: dict[str, object] = {"html": HTMLReportPlugin()}
+        self.data_source_plugins: dict[str, object] = {}
         self.external_plugins = discover_external_plugins(self.plugin_dir)
         self._register_external_plugins()
         self.plugin_runtime = RuntimePluginManager(store, self._plugin_specs())
@@ -126,7 +127,7 @@ class ExperimentOrchestrator:
         field_mapping: dict[str, str] | None = None,
     ) -> dict:
         manifest = self._manifest(project_id)
-        plugin = plugin_for_filename(filename)
+        plugin = self._data_plugin_for_filename(filename)
         self._require_plugin_loaded(plugin.__class__.__name__)
         self._require_plugin_loaded(self.preprocessor.name)
         preview = plugin.preview_text(
@@ -149,7 +150,7 @@ class ExperimentOrchestrator:
         field_mapping: dict[str, str] | None = None,
     ) -> dict:
         manifest = self._manifest(project_id)
-        plugin = plugin_for_filename(filename)
+        plugin = self._data_plugin_for_filename(filename)
         self._require_plugin_loaded(plugin.__class__.__name__)
         self._require_plugin_loaded(self.preprocessor.name)
         preview = self.preview_dataset(project_id, filename, content, field_mapping)
@@ -189,7 +190,7 @@ class ExperimentOrchestrator:
             raise ValueError("Dataset not found.")
         content = Path(dataset["file_path"]).read_text(encoding="utf-8")
         manifest = self._manifest(project_id)
-        plugin = plugin_for_filename(dataset["filename"])
+        plugin = self._data_plugin_for_filename(dataset["filename"])
         self._require_plugin_loaded(plugin.__class__.__name__)
         self._require_plugin_loaded(self.preprocessor.name)
         rows = plugin.load_text(
@@ -424,12 +425,13 @@ class ExperimentOrchestrator:
             })
         return output.getvalue()
 
-    def generate_report(self, project_id: str) -> dict:
-        self._require_plugin_loaded(self.reporter.name)
+    def generate_report(self, project_id: str, format: str = "html") -> dict:
+        reporter = self.reporters.get(format) or self.reporters["html"]
+        self._require_plugin_loaded(reporter.name)
         bundle = self._bundle(project_id)
         if not bundle["project"]:
             raise ValueError("Project not found.")
-        html = self.reporter.generate(
+        html = reporter.generate(
             bundle["project"],
             bundle["runs"],
             bundle["recommendations"],
@@ -510,7 +512,7 @@ class ExperimentOrchestrator:
             ),
             PluginSpec("optimizer:HeuristicOptimizerPlugin", HeuristicOptimizerPlugin.name, "optimizer", key="heuristic"),
             PluginSpec("optimizer:BayesianOptimizerPlugin", BayesianOptimizerPlugin.name, "optimizer", key="bayesian"),
-            PluginSpec("report:HTMLReportPlugin", self.reporter.name, "report"),
+            PluginSpec("report:HTMLReportPlugin", self.reporters["html"].name, "report"),
         ]
         for experiment_type, plugin in self.feature_plugins.items():
             specs.append(PluginSpec(
@@ -536,13 +538,41 @@ class ExperimentOrchestrator:
         specs.extend(package.spec for package in self.external_plugins)
         return specs
 
+    def reload_external_plugins(self) -> list[dict]:
+        self.external_plugins = discover_external_plugins(self.plugin_dir)
+        self._register_external_plugins()
+        self.plugin_runtime = RuntimePluginManager(self.store, self._plugin_specs())
+        return self.plugin_catalog()
+
+    def _data_plugin_for_filename(self, filename: str):
+        ext = Path(filename).suffix.lower()
+        if ext in self.data_source_plugins:
+            return self.data_source_plugins[ext]
+        return plugin_for_filename(filename)
+
     def _register_external_plugins(self) -> None:
         for package in self.external_plugins:
-            if package.spec.type == "optimizer" and package.instance is not None:
-                if not getattr(package.instance, "name", None):
-                    setattr(package.instance, "name", package.spec.name)
-                self.optimizers[package.spec.key or package.spec.name] = package.instance
-                self.optimizer_plugin_ids[package.spec.key or package.spec.name] = package.spec.id
+            if package.instance is None:
+                continue
+            plugin_type = package.spec.type
+            instance = package.instance
+            if not getattr(instance, "name", None):
+                setattr(instance, "name", package.spec.name)
+            if plugin_type == "optimizer":
+                key = package.spec.key or package.spec.name
+                self.optimizers[key] = instance
+                self.optimizer_plugin_ids[key] = package.spec.id
+            elif plugin_type == "feature" and package.spec.experiment_type:
+                self.feature_plugins[package.spec.experiment_type] = instance
+            elif plugin_type == "model" and package.spec.experiment_type:
+                self.model_plugins[package.spec.experiment_type] = instance
+            elif plugin_type == "constraint" and package.spec.experiment_type:
+                self.constraint_plugins[package.spec.experiment_type] = instance
+            elif plugin_type == "report":
+                self.reporters[package.spec.key or package.spec.name] = instance
+            elif plugin_type == "data_source":
+                for ext in package.spec.file_extensions:
+                    self.data_source_plugins[ext.lower()] = instance
 
     def _bundle(self, project_id: str) -> dict:
         bundle = self.store.project_bundle(project_id)

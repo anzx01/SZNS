@@ -11,7 +11,16 @@ from typing import Any
 from .plugin_runtime import PluginSpec
 
 
-SUPPORTED_EXTERNAL_TYPES = {"optimizer"}
+SUPPORTED_EXTERNAL_TYPES = {"optimizer", "feature", "model", "constraint", "report", "data_source"}
+
+_REQUIRED_METHODS: dict[str, tuple[str, ...]] = {
+    "optimizer": ("recommend",),
+    "feature": ("extract",),
+    "model": ("simulate",),
+    "constraint": ("check",),
+    "report": ("generate",),
+    "data_source": ("load_text", "preview_text"),
+}
 
 
 @dataclass(frozen=True)
@@ -56,6 +65,16 @@ def _spec_from_manifest(directory: Path, manifest: dict[str, Any]) -> PluginSpec
     notes = str(manifest.get("notes") or "")
     if not supported:
         notes = f"Unsupported external plugin type: {plugin_type}."
+
+    raw_extensions = manifest.get("file_extensions") or []
+    if isinstance(raw_extensions, str):
+        raw_extensions = [raw_extensions]
+    file_extensions = tuple(
+        ext if ext.startswith(".") else f".{ext}"
+        for ext in raw_extensions
+        if isinstance(ext, str) and ext.strip()
+    )
+
     return PluginSpec(
         id=plugin_id,
         name=name,
@@ -68,6 +87,7 @@ def _spec_from_manifest(directory: Path, manifest: dict[str, Any]) -> PluginSpec
         default_loaded=bool(manifest.get("default_loaded", True)) and supported,
         available=supported,
         notes=notes,
+        file_extensions=file_extensions,
     )
 
 
@@ -96,8 +116,10 @@ def _load_module(directory: Path, module_name: str, plugin_id: str) -> ModuleTyp
 
 
 def _validate_instance(spec: PluginSpec, instance: object) -> None:
-    if spec.type == "optimizer" and not callable(getattr(instance, "recommend", None)):
-        raise ValueError("optimizer plugins must implement recommend(runs, config).")
+    required = _REQUIRED_METHODS.get(spec.type, ())
+    for method in required:
+        if not callable(getattr(instance, method, None)):
+            raise ValueError(f"{spec.type} plugins must implement {method}(...).")
 
 
 def _required_text(manifest: dict[str, Any], key: str) -> str:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import logging.handlers
 import mimetypes
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,6 +17,25 @@ if str(SRC) not in sys.path:
 from lab_mvp.orchestrator import ExperimentOrchestrator
 from lab_mvp.storage import JsonStore
 
+
+def _setup_logging() -> logging.Logger:
+    log_dir = ROOT / "logs"
+    log_dir.mkdir(exist_ok=True)
+    logger = logging.getLogger("lab_mvp")
+    logger.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%dT%H:%M:%S")
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        log_dir / "server.log", when="midnight", backupCount=14, encoding="utf-8"
+    )
+    file_handler.setFormatter(fmt)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(fmt)
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    return logger
+
+
+logger = _setup_logging()
 
 store = JsonStore(ROOT / "data")
 orchestrator = ExperimentOrchestrator(store, ROOT / "sample_data")
@@ -134,7 +155,13 @@ class MVPHandler(BaseHTTPRequestHandler):
                 self._json(orchestrator.calibrate_model(payload["project_id"]))
                 return
             if path == "/api/reports":
-                self._json(orchestrator.generate_report(payload["project_id"]))
+                self._json(orchestrator.generate_report(
+                    payload["project_id"],
+                    payload.get("format", "html"),
+                ))
+                return
+            if path == "/api/plugins/reload":
+                self._json(orchestrator.reload_external_plugins())
                 return
             if path == "/api/demo/load":
                 self._json(orchestrator.load_demo())
@@ -147,7 +174,7 @@ class MVPHandler(BaseHTTPRequestHandler):
             self._error(exc)
 
     def log_message(self, fmt: str, *args) -> None:
-        print(f"{self.address_string()} - {fmt % args}")
+        logger.info("%s - %s", self.address_string(), fmt % args)
 
     def _payload(self) -> dict:
         length = int(self.headers.get("content-length", "0"))
@@ -226,13 +253,14 @@ class MVPHandler(BaseHTTPRequestHandler):
         self._json({"error": "Not found"}, 404)
 
     def _error(self, exc: Exception) -> None:
+        logger.exception("Request error: %s", exc)
         self._json({"error": str(exc), "type": exc.__class__.__name__}, 500)
 
 
 def main() -> None:
     port = 8765
     server = ThreadingHTTPServer(("127.0.0.1", port), MVPHandler)
-    print(f"Lab MVP server running at http://127.0.0.1:{port}")
+    logger.info("Lab MVP server running at http://127.0.0.1:%d", port)
     server.serve_forever()
 
 

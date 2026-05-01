@@ -2,6 +2,11 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
+.venv/
+
 data/*
 !data/.gitkeep
+
+logs/*
+!logs/.gitkeep
 
