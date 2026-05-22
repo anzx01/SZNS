@@ -21,7 +21,7 @@ class ValidationResult:
     info: dict = field(default_factory=dict)
 
     def summary(self) -> str:
-        lines: list[str] = [f"{'✓ PASS' if self.ok else '✗ FAIL'}  {self.package_path}"]
+        lines: list[str] = [f"{'[PASS]' if self.ok else '[FAIL]'}  {self.package_path}"]
         for msg in self.errors:
             lines.append(f"  [ERROR]   {msg}")
         for msg in self.warnings:

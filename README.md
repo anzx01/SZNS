@@ -176,6 +176,21 @@ temperature,humidity
 
 样例数据位于 `sample_data/`。
 
+## 开源许可与合规
+
+本项目以 MIT License 开源，完整文本见 [LICENSE](LICENSE)。除文件内另有说明外，仓库中的源代码、文档、样例插件和样例数据按同一许可发布；第三方依赖、图片素材和后续贡献中单独声明的第三方材料仍遵循其各自许可。图片来源不确定时，请在公开发布前替换、移除或补充来源与授权说明。
+
+开源前和接受贡献时请同时参考：
+
+- [NOTICE](NOTICE)：版权范围、样例数据、图片素材和第三方依赖说明。
+- [COMPLIANCE.md](COMPLIANCE.md)：实验安全、数据隐私、出口管制、第三方知识产权和插件风险边界。
+- [PRIVACY.md](PRIVACY.md)：本地数据、日志、导出包和浏览器本地存储说明。
+- [SECURITY.md](SECURITY.md)：漏洞报告方式和安全支持范围。
+- [CONTRIBUTING.md](CONTRIBUTING.md)：贡献者版权、DCO / 原创性承诺和禁止提交的内容。
+- [OPEN_SOURCE_RELEASE_CHECKLIST.md](OPEN_SOURCE_RELEASE_CHECKLIST.md)：发布到 GitHub 前的检查清单。
+
+本项目是研究和验证原型，不是经认证的设备控制、安全保护、轨道交通、电力电子或工业生产系统。任何接入真实设备、真实实验数据、商业仿真软件、受管制技术或客户/个人数据的使用者，都需要自行完成适用的安全评审、合规审查和授权确认。
+
 ## 目录结构
 
 ```text

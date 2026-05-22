@@ -4,9 +4,28 @@ __pycache__/
 
 .venv/
 
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+.claude/
+.codex/
+
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.p12
+*.pfx
+*.secret
+
 data/*
 !data/.gitkeep
 
 logs/*
 !logs/.gitkeep
-

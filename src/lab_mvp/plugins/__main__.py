@@ -28,7 +28,7 @@ def _cmd_validate(paths: list[str]) -> int:
     if len(paths) > 1:
         total = len(paths)
         passed = total - failed
-        print(f"\n合计: {passed}/{total} 通过", "✓" if failed == 0 else "✗")
+        print(f"\n合计: {passed}/{total} 通过", "[PASS]" if failed == 0 else "[FAIL]")
     return 1 if failed else 0
 
 

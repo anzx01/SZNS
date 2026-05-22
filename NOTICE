@@ -1,0 +1,55 @@
+szns Notice
+===========
+
+Copyright
+---------
+
+Copyright (c) 2026 The szns contributors.
+
+This repository is distributed under the MIT License. See LICENSE for the
+full license text.
+
+Unless a file or directory states otherwise, the MIT License applies to the
+source code, documentation, sample plugins, and sample datasets committed to
+this repository.
+
+Repository Scope
+----------------
+
+The committed sample data in `sample_data/` is synthetic demonstration data for
+testing and documentation. It is not claimed to represent certified equipment
+measurements, customer data, regulated operating data, or production safety
+limits.
+
+The files in `image/` are treated as documentation assets. Before publishing,
+confirm that each image is original, generated for this project, or otherwise
+licensed for redistribution. If any image is a third-party asset, add the asset
+source, author, license, and required attribution, or remove it before release.
+
+Runtime data under `data/` and logs under `logs/` are local operating artifacts.
+They are intentionally ignored except for `.gitkeep` placeholders and should
+not be published unless they have been reviewed and intentionally sanitized.
+
+Third-Party Software
+--------------------
+
+This project does not vendor third-party source code. Optional and development
+dependencies are declared in `pyproject.toml` and resolved through the Python
+package ecosystem; each dependency remains subject to its upstream license.
+Before redistributing packaged builds, review and preserve applicable upstream
+license notices.
+
+No Trademark Rights
+-------------------
+
+The project license does not grant permission to use the names, logos,
+trademarks, or service marks of contributors, organizations, vendors, equipment
+manufacturers, or simulation tools except as required for factual reference.
+
+Contribution Notice
+-------------------
+
+By contributing, contributors confirm that they have the right to submit their
+contribution under the project license and that it does not knowingly include
+proprietary code, controlled technical data, confidential data, personal data,
+or third-party material without documented permission.

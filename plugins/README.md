@@ -25,7 +25,7 @@ plugins/
 }
 ```
 
-For this MVP, external package scanning supports `optimizer` plugins. The entry class must implement:
+External package scanning supports `optimizer`, `feature`, `model`, `constraint`, `report`, and `data_source` plugins. The entry class must implement the interface required by its `type`. For an optimizer:
 
 ```python
 def recommend(self, runs: list[dict], config: dict) -> dict:
@@ -37,4 +37,10 @@ def recommend(self, runs: list[dict], config: dict) -> dict:
     }
 ```
 
-After adding a package, restart `python .\app.py`. The plugin appears in the workbench plugin catalog and, when loaded, in the optimizer selector.
+After adding a package, use the workbench reload action or call `POST /api/plugins/reload`. The plugin appears in the workbench plugin catalog and, when loaded, participates in the corresponding workflow.
+
+## Licensing and safety
+
+Plugin packages in this repository are distributed under the repository MIT License unless a plugin package states otherwise. Do not submit plugins that contain proprietary algorithms, third-party code, controlled technical data, real customer data, secrets, credentials, or device-specific safety limits unless you have documented permission to publish them.
+
+External plugins are imported as local Python code. Review and run only plugins from trusted sources, especially before connecting the platform to real instruments, simulators, or datasets.
