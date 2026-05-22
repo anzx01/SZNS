@@ -29,3 +29,7 @@ data/*
 
 logs/*
 !logs/.gitkeep
+
+szns.md
+MVP_PRD.md
+TECH_PLAN.md
